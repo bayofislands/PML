@@ -137,4 +137,8 @@ for(i in 1:length(pmlAnswers)) {
 
 **Find the R Markdown for this page on the Git Hub Repository:**
 
-[Git Hub Repository](https://github.com/bayofislands/PML)
+[GitHub Repository](https://raw.githubusercontent.com/bayofislands/PML/master/index.Rmd)
+
+**GitHub Pages Website**
+
+[GH Pages Web Site](http://bayofislands.github.io/PML/)
