@@ -1,0 +1,140 @@
+---
+title: "Auto-evaluate weight-lifter's performance"
+author: "Paul Denny"
+date: "18/10/2014"
+output: html_document
+---
+
+### Summary
+
+This project evaluates the data from six weight-lifting participants who had accelerometers fitted to their belt, forearm, arm, and dumbell. They were asked to perform barbell lifts correctly and incorrectly in five different ways.  The project should fit a model to this data that can best classify these five categories from the 159 predictors made available in the dataset.
+
+More information is available from the website: [groupware.les.inf.puc-rio.br/har](htp://groupware.les.inf.puc-rio.br/har)
+
+The data provided for the course is not the original as per the above website, it is a reduced set of 19623 rows, about 50%.
+
+**A Random Forest model was fitted and provided an accuracy of 99.44% when cross-validated on the test data.**
+
+### Data Analysis
+
+#### Load libraries and the data and set the seed for repeatability
+
+```{r loadDataLibrary, warning=FALSE, message=FALSE}
+# load required libraries,
+require(caret, quietly=TRUE)
+require(randomForest, quietly=TRUE)
+
+# set seed for repeatability
+set.seed(1961)
+
+# download data from internet if necessary
+if (!file.exists("pml-data.csv"))
+  download.file("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", "pml-data.csv")
+if (!file.exists("pml-quest.csv"))
+  download.file("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", "pml-quest.csv")
+
+#load data, assigning NA to missing data
+pmlData <- read.csv("pml-data.csv", na.strings=c("","NA","#DIV/0!"))
+pmlQuest <- read.csv("pml-quest.csv", na.strings=c("","NA","#DIV/0!"))
+
+# size of the data set is [19623, 160]
+dim(pmlData)
+```
+
+#### Cleanse the data of unnecessary columns due to NA's or other superfluous information
+
+```{r dataCleanse}
+# remove variable/predictor columns where most data are NA, ie more than 97.5%
+NA.cols <- as.data.frame(sapply(pmlData, function(x) length(x[is.na(x)])/length(x)))
+NA.cols <- row.names(NA.cols[NA.cols > 0.975,,drop=FALSE])
+pmlData <- pmlData[, -which(names(pmlData) %in% NA.cols)]
+
+# remove superfluous index, sequence info date/time and subject identity 
+pmlData <- pmlData[, -which(names(pmlData) %in% c('X', 'user_name', 'raw_timestamp_part_1', 
+                                                  'raw_timestamp_part_2', 'cvtd_timestamp', 
+                                                  'new_window', 'num_window'))]
+
+dim(pmlData)
+```
+
+#### Partition the data into training (80%) and testing (20%) sets
+
+```{r partitionData}
+# partition data into a training (80%) and testing set (20%)
+trainIndex = createDataPartition(pmlData$classe, p = 4/5, list=FALSE)
+training = pmlData[trainIndex,]; testing = pmlData[-trainIndex,]
+```
+
+#### Use Random Forest (Decision Tree Ensemble Method Classifier)
+
+A Random Forest approach was chosen as it is one of the top performing algorithms for accuracy in classification prediction with some resilience to over-fitting and in-built cross-validation and oob error metrics (equivalent to out of sample error).  Examining the variable importance for further understanding of the data or tuning of the data model is also extremely useful.
+
+```{r applyRandomForest}
+# Fit Random Forest Model
+# If the model hasn't already been run - run it, recording how long it takes and save it. 
+if (!file.exists("modelFit.RData")) {
+    system.time(modelFit <- train(training$classe ~ ., method="rf", importance=TRUE, data=training))
+    save(modelFit, file="modelFit.RData")
+} else {
+    load(file="modelFit.RData")
+}    
+# Run-time 5 hours 28 minutes on HP Workstation XW4400 with 4GB and no GX CORES, CPU:
+# http://ark.intel.com/products/27249/Intel-Core2-Duo-Processor-E6400-2M-Cache-2_13-GHz-1066-MHz-FSB
+```
+
+#### Random Forest Final Model Results
+
+`modelFit <- train(training$classe ~ ., method="rf", importance=TRUE, data=training`
+
+```{r finalModelResults}
+#  Model Results:
+modelFit
+modelFit$finalModel
+```
+
+The Random Forest OOB, out of bag error, is shown above to be *0.57%* and gives us a reasonably unbiased approximation to the *Out of Sample Error* due to the ensemble method used. This model looks promissing.
+
+#### Variable Importance for this Random Forest Model
+
+There are six dominant predictors of importance in this model, they are:
+
+`roll_belt pitch_forearm yaw_belt magnet_dumbell_y magnet_dumbell_z pitch_belt`
+
+```{r confusionImportance, fig.height=8, fig.width=10, fig.cap="Variable Importance", echo=FALSE}
+varImpPlot(modelFit$finalModel, main="Variable Importance")
+```
+
+#### Cross Validate with the Test Data
+
+Random Forest incorporates cross validation and out of sample error estimates via OOB, but further validation on a separate test set is good practice, at least to highlight possible over-fitting.
+
+The confusion matrix for our model predicting against the test data set shows an accuracy of 99.44%, almost exactly as expected given the OOB of 0.57% above, not only does this show our model to be accurate when cross validated on the test data, with an **Out of Sample Error** of **0.56%**, it shows no tendency to over-fitting.
+
+```{r crossvalidateConfusion}
+confusionMatrix(testing$classe, predict(modelFit,testing))
+```
+
+#### Conclusion
+
+Given the Random Forest was not highly tuned (mtry, and ntrees were default) and no further pruning of the predictors, despite the significance of the variable importance, 99.44% accuracy would appear to be a good result in predicting weight-lifting performance from the accelerometer data given.
+
+As an aside the researcher did examine the predictive power of the dumbbell sensors alone and was able to achieve 90% accuracy with the above model, and if this was research towards a real-world product, would focus on the dumbbell sensors alone, smartbells are coming!
+
+#### Appendix
+
+**Answer 20 predictions to submit to coursera as individual files**
+
+```{r predictAnswers}
+pmlAnswers <- predict(modelFit,pmlQuest)
+
+pmlAnswers
+
+for(i in 1:length(pmlAnswers)) {
+    filename = paste("pmlAnswers/problem_id_", i, ".txt", sep="")
+    write.table(pmlAnswers[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+}
+```
+
+**Find the R Markdown for this page on the Git Hub Repository:**
+
+[Git Hub Repository](https://github.com/bayofislands/PML)
