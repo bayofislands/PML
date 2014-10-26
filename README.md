@@ -1,5 +1,4 @@
-Practical Machine Learning - Data Science - Coursera
-====================================================
+#### Practical Machine Learning - Data Science - Coursera ####
 
 **Link to the R Markdown for this page on the GitHub Repository Website:**
 
